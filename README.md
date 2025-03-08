@@ -10,16 +10,15 @@ The official template repository for Define 3.0
  Cover Image  If applicable
 
 ### Team Information
-- **Team Name**: <Team Name> 
-- **Track**: < Track >
-
+- **Team Name**: Budhimaan
+- **Track**: Ayush
 ### Team Members
 | Name | Role | GitHub | LinkedIn |
 |------|------|--------|----------|
-| [Full Name] | [Role] | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
-| [Full Name] | [Role] | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
-| [Full Name] | [Role] | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
-| [Full Name] | [Role] | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
+| D Pranav | Leader | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
+| Harikrishnan M | [Role] | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
+| Kaviya GM | [Role] | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
+| Sivasakthi S | [Role] | [@username](https://github.com/username) | [Profile](https://linkedin.com/in/username) |
 
 ## Project Details
 
