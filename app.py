@@ -13,7 +13,7 @@ from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 
 
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = "YOUR_GITHUB_TOKEN"
 PDF_DIR = "knowledge_base"
 USER_DATA_FILE = "user_profile.json"
 ENDPOINT = "https://models.inference.ai.azure.com"
