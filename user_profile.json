@@ -1,0 +1,76 @@
+{
+  "userProfile": {
+    "personalInformation": {
+      "name": "Pranav",
+      "age": 20,
+      "gender": "male",
+      "weight": 60,
+      "height": 160
+    },
+    "healthStatus": {
+      "existingConditions": "none",
+      "recentChanges": {
+        "weight": "good",
+        "appetite": "stable"
+      }
+    },
+    "dietaryHabits": {
+      "typicalDiet": "thayir soru",
+      "mealsPerDay": 3,
+      "foodPreferences": "none",
+      "foodAversions": "none"
+    },
+    "sleepPatterns": {
+      "averageSleepHours": 6,
+      "restedUponWaking": true
+    },
+    "stressManagement": {
+      "currentStressors": "none",
+      "stressManagementMethods": "none"
+    },
+    "physicalActivity": {
+      "activityLevel": "gym",
+      "specificExercises": "none"
+    },
+    "yogaAndMeditation": {
+      "practiceFrequency": "none"
+    },
+    "selfCareRoutine": {
+      "routine": "none"
+    },
+    "ayushFamiliarity": {
+      "knowledgeOfAyurveda": "no",
+      "consultationHistory": "no"
+    },
+    "prakritiAssessment": {
+      "potentialDosha": {
+        "vata": 1,
+        "pitta": 2,
+        "kapha": 2
+      },
+      "dominantDosha": "pitta/kapha",
+      "doshaImbalances": {
+        "vata": "balanced",
+        "pitta": "potentially elevated due to gym activity",
+        "kapha": "balanced"
+      }
+    },
+    "lifestyleFactors": {
+      "diet": {
+        "type": "traditional",
+        "balance": "may need more variety and nutrients"
+      },
+      "exercise": {
+        "type": "strength training",
+        "balance": "good for muscle development"
+      },
+      "sleep": {
+        "quality": "adequate but could improve"
+      },
+      "stress": {
+        "level": "low",
+        "management": "none"
+      }
+    }
+  }
+}
