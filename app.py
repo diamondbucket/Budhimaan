@@ -1,3 +1,5 @@
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 import os
 import json
 import time
@@ -6,13 +8,13 @@ from azure.ai.inference.models import SystemMessage, UserMessage
 from azure.core.credentials import AzureKeyCredential
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import Chroma
-from langchain.vectorstores import FAISS
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
+from typing import List, Dict, Any, Optional, Tuple
 
+# Initialize Flask app
+app = Flask(__name__, static_folder='frontend/build', static_url_path='')
+CORS(app)  # Enable CORS for all routes
 
+# Constants
 GITHUB_TOKEN = "YOUR_GITHUB_TOKEN"
 PDF_DIR = "knowledge_base"
 USER_DATA_FILE = "user_profile.json"
@@ -24,7 +26,7 @@ github_client = ChatCompletionsClient(
     credential=AzureKeyCredential(GITHUB_TOKEN),
 )
 
-# Create vector database from PDFs
+# Create vector database from PDFs - keeping your existing implementation
 def create_vector_db():
     # Create directory for knowledge base if it doesn't exist
     os.makedirs(PDF_DIR, exist_ok=True)
@@ -95,7 +97,6 @@ def create_vector_db():
     # Create a custom wrapper for LangChain compatibility
     from langchain.vectorstores.base import VectorStore
     from langchain.docstore.document import Document
-    from typing import List, Dict, Any, Optional, Tuple
     
     class ChromaWrapper(VectorStore):
         def __init__(self, client, collection_name, embedding_function):
@@ -130,7 +131,6 @@ def create_vector_db():
         def from_texts(cls, texts: List[str], embedding: Any, metadatas: Optional[List[Dict[str, Any]]] = None, **kwargs):
             """Create a ChromaWrapper from texts."""
             # This is just a placeholder implementation to satisfy the abstract method
-            # In practice, you would create a new collection and add the texts
             raise NotImplementedError("This method is implemented only to satisfy the abstract class requirement")
         
         def similarity_search(self, query: str, k: int = 4) -> List[Document]:
@@ -150,33 +150,6 @@ def create_vector_db():
             return documents
         
         def as_retriever(self, search_kwargs=None):
-            # Try different import paths for VectorStoreRetriever
-            try:
-                # First try the new location
-                from langchain_core.vectorstores.base import VectorStoreRetriever
-            except ImportError:
-                try:
-                    # Then try the legacy location
-                    from langchain_core.vectorstores.base import VectorStoreRetriever
-                except ImportError:
-                    # Create a simple retriever class if import fails
-                    class SimpleRetriever:
-                        def __init__(self, vectorstore, search_kwargs=None):
-                            self.vectorstore = vectorstore
-                            self.search_kwargs = search_kwargs or {}
-                        
-                        def get_relevant_documents(self, query):
-                            return self.vectorstore.similarity_search(
-                                query, 
-                                k=self.search_kwargs.get("k", 4)
-                            )
-                    
-                    search_kwargs = search_kwargs or {}
-                    return SimpleRetriever(
-                        vectorstore=self,
-                        search_kwargs=search_kwargs
-                    )
-            
             search_kwargs = search_kwargs or {}
             
             # Create a direct retriever function that bypasses validation
@@ -203,7 +176,7 @@ def create_vector_db():
     print(f"Created vector database with {len(chunks)} chunks from {len(pdf_files)} PDFs")
     return vector_store
 
-# Updated function to call GitHub models with Azure AI Inference SDK
+# Function to call GitHub models with Azure AI Inference SDK
 def call_github_model(messages, model_name="gpt-4o-mini", temperature=0.7, max_tokens=1000):
     try:
         # Convert messages to the format expected by Azure AI Inference SDK
@@ -213,7 +186,6 @@ def call_github_model(messages, model_name="gpt-4o-mini", temperature=0.7, max_t
                 azure_messages.append(SystemMessage(content=msg["content"]))
             elif msg["role"] == "user":
                 azure_messages.append(UserMessage(content=msg["content"]))
-            # Add assistant message handling if needed
         
         response = github_client.complete(
             messages=azure_messages,
@@ -241,10 +213,8 @@ def call_github_model(messages, model_name="gpt-4o-mini", temperature=0.7, max_t
         else:
             return "I apologize, but I encountered an error processing your request. Please try again."
 
-# Add this new function to generate responses locally without API
+# Generate responses locally when API is unavailable
 def generate_local_response(messages):
-    """Generate responses locally when API is unavailable"""
-    # Extract the user's message
     user_message = ""
     system_message = ""
     
@@ -326,138 +296,8 @@ This plan is based on general AYUSH principles. For more personalized recommenda
     else:
         return "I'm currently operating in offline mode. I can help with basic AYUSH lifestyle recommendations, but for more personalized advice, please check your API connection or consult with an AYUSH practitioner."
 
-# User information collection with adaptive questioning
-def collect_user_info(vector_store=None):
-    user_data = {}
-    
-    # Initial greeting
-    print("🧘 AYUSH Lifestyle Coach 🌿")
-    print("I'll help create a personalized lifestyle plan based on AYUSH principles.")
-    print("Let's start by collecting some information about you.")
-    
-    # Initial basic questions
-    basic_questions = [
-        "What is your name?",
-        "What is your age?",
-        "What is your gender?",
-        "What is your current weight (in kg) and height (in cm)?",
-        "Do you have any existing health conditions or concerns?"
-    ]
-    
-    # Ask basic questions and store responses
-    responses = []
-    for question in basic_questions:
-        print(f"\n{question}")
-        user_input = input("> ")
-        responses.append({"question": question, "answer": user_input})
-    
-    # Use DeepSeek R1 to analyze initial responses and generate personalized follow-up questions
-    initial_profile = "\n".join([f"Q: {r['question']}\nA: {r['answer']}" for r in responses])
-    
-    system_prompt = """You are an expert AYUSH practitioner specializing in Ayurveda, Yoga, Unani, Siddha, and Homeopathy.
-Based on the initial user information, generate 8-10 personalized follow-up questions that will help you understand their constitution (prakriti), imbalances (vikriti), and lifestyle factors.
-Tailor your questions to their specific health concerns, age, and gender.
-Your questions should help gather information about their diet, sleep patterns, stress levels, exercise habits, and any specific AYUSH-related information.
-Format your response as a JSON array of questions only."""
-    
-    user_prompt = f"""Initial user information:
-{initial_profile}
-
-Generate personalized follow-up questions to better understand this individual from an AYUSH perspective."""
-    
-    # Get personalized questions using DeepSeek R1
-    follow_up_questions_json = call_github_model(
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        model_name="gpt-4o-mini",
-        temperature=0.7,
-        max_tokens=2000
-    )
-    
-    # Parse the follow-up questions
-    try:
-        # Try to extract JSON if it's embedded in text
-        if not follow_up_questions_json.strip().startswith('['):
-            import re
-            json_match = re.search(r'(\[.*\])', follow_up_questions_json, re.DOTALL)
-            if json_match:
-                follow_up_questions_json = json_match.group(1)
-        
-        follow_up_questions = json.loads(follow_up_questions_json)
-        if not isinstance(follow_up_questions, list):
-            raise ValueError("Expected a list of questions")
-    except:
-        # Fallback questions if JSON parsing fails
-        print("Using default follow-up questions...")
-        follow_up_questions = [
-            "What is your typical daily routine (waking time, sleeping time, meal times)?",
-            "What is your current diet like? Please describe what you typically eat in a day.",
-            "How would you describe your stress levels (low, moderate, high)?",
-            "Do you exercise regularly? If yes, what type and how often?",
-            "What are your main health goals or areas you'd like to improve?",
-            "Have you tried any AYUSH practices before (Ayurveda, Yoga, Unani, Siddha, Homeopathy)?",
-            "Do you have any dietary restrictions or preferences?",
-            "How is your sleep quality and duration?",
-            "What is your water intake per day?",
-            "Are you currently taking any medications or supplements?"
-        ]
-    
-    # Ask personalized follow-up questions
-    for question in follow_up_questions:
-        if isinstance(question, dict) and 'question' in question:
-            question = question['question']
-        print(f"\n{question}")
-        user_input = input("> ")
-        responses.append({"question": question, "answer": user_input})
-    
-    # Process all responses with DeepSeek R1 to extract structured information
-    prompt = "Based on the following user responses, create a structured profile for AYUSH lifestyle planning:\n\n"
-    for resp in responses:
-        prompt += f"Question: {resp['question']}\nAnswer: {resp['answer']}\n\n"
-    prompt += "Create a detailed JSON structure with relevant fields extracted from these responses, including prakriti assessment, dosha imbalances, and lifestyle factors."
-    
-    # Use gpt-4o for deeper analysis of user profile
-    structured_data_response = call_github_model(
-        messages=[
-            {"role": "system", "content": "You are an expert AYUSH practitioner who can analyze user information and create structured profiles based on Ayurvedic, Yoga, Unani, Siddha, and Homeopathy principles."},
-            {"role": "user", "content": prompt}
-        ],
-        model_name="gpt-4o-mini",
-        temperature=0.3,
-        max_tokens=3000
-    )
-    
-    # Parse the structured data
-    try:
-        # Try to extract JSON if it's embedded in text
-        if not structured_data_response.strip().startswith('{'):
-            import re
-            json_match = re.search(r'(\{.*\})', structured_data_response, re.DOTALL)
-            if json_match:
-                structured_data_response = json_match.group(1)
-        
-        user_data = json.loads(structured_data_response)
-    except:
-        # Fallback if JSON parsing fails
-        user_data = {"raw_responses": responses}
-        user_data["analysis_text"] = structured_data_response
-    
-    # Save user data to file
-    with open(USER_DATA_FILE, 'w') as f:
-        json.dump(user_data, f, indent=2)
-    
-    print("\nThank you for providing your information. I'll now analyze it to create your personalized AYUSH lifestyle plan.")
-    return user_data
-
-# Generate lifestyle plan using DeepSeek R1 and RAG
+# Generate lifestyle plan using LLM and RAG
 def generate_lifestyle_plan(user_data, vector_store):
-    # Load user data
-    if isinstance(user_data, str) and os.path.exists(user_data):
-        with open(user_data, 'r') as f:
-            user_data = json.load(f)
-    
     # Create retriever from vector store
     retriever = vector_store.as_retriever(search_kwargs={"k": 5})
     
@@ -471,7 +311,7 @@ def generate_lifestyle_plan(user_data, vector_store):
     # Extract relevant content from retrieved documents
     knowledge_context = "\n\n".join([doc.page_content for doc in retrieved_docs])
     
-    # Create prompt for DeepSeek R1
+    # Create prompt for LLM
     system_prompt = """You are an expert AYUSH lifestyle coach with deep knowledge of Ayurveda, Yoga, Unani, Siddha, and Homeopathy.
 Your task is to create a comprehensive, personalized lifestyle plan based on AYUSH principles.
 Analyze the user's profile carefully and match it with the knowledge base information.
@@ -497,7 +337,7 @@ RELEVANT KNOWLEDGE BASE INFORMATION:
 Based on this information, create a comprehensive, personalized AYUSH lifestyle plan for this individual.
 Be specific, practical, and thorough in your recommendations."""
 
-    # Generate lifestyle plan using DeepSeek R1
+    # Generate lifestyle plan using LLM
     lifestyle_plan = call_github_model(
         messages=[
             {"role": "system", "content": system_prompt},
@@ -510,88 +350,183 @@ Be specific, practical, and thorough in your recommendations."""
     
     return lifestyle_plan
 
-# Interactive chat function
-def chat_with_user(vector_store):
-    user_data = None
-    lifestyle_plan = None
+# Initialize vector store at startup
+vector_store = None
+
+@app.before_first_request
+def initialize():
+    global vector_store
+    vector_store = create_vector_db()
+
+# API Routes
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "healthy", "vector_store": vector_store is not None})
+
+@app.route('/api/collect-info', methods=['POST'])
+def collect_info():
+    data = request.json
+    basic_info = data.get('basicInfo', {})
     
-    print("Welcome to AYUSH Lifestyle Coach!")
-    print("Type 'exit' at any time to quit.")
+    # Generate follow-up questions based on basic info
+    system_prompt = """You are an expert AYUSH practitioner specializing in Ayurveda, Yoga, Unani, Siddha, and Homeopathy.
+Based on the initial user information, generate 8-10 personalized follow-up questions that will help you understand their constitution (prakriti), imbalances (vikriti), and lifestyle factors.
+Tailor your questions to their specific health concerns, age, and gender.
+Your questions should help gather information about their diet, sleep patterns, stress levels, exercise habits, and any specific AYUSH-related information.
+Format your response as a JSON array of questions only."""
     
-    while True:
-        if not user_data:
-            print("\nI need to collect some information about you first.")
-            user_data = collect_user_info(vector_store)
-            continue
-            
-        if not lifestyle_plan:
-            print("\nGenerating your personalized AYUSH lifestyle plan...")
-            lifestyle_plan = generate_lifestyle_plan(user_data, vector_store)
-            print("\n" + "="*50)
-            print("YOUR PERSONALIZED AYUSH LIFESTYLE PLAN")
-            print("="*50)
-            print(lifestyle_plan)
-            print("\nDo you have any questions about your plan? (Type 'exit' to quit)")
-            continue
+    user_prompt = f"""Initial user information:
+{json.dumps(basic_info, indent=2)}
+
+Generate personalized follow-up questions to better understand this individual from an AYUSH perspective."""
+    
+    # Get personalized questions
+    follow_up_questions_json = call_github_model(
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+                model_name="gpt-4o-mini",
+        temperature=0.7,
+        max_tokens=2000
+    )
+    
+    try:
+        # Try to parse the response as JSON
+        follow_up_questions = json.loads(follow_up_questions_json)
+    except:
+        # Fallback to a simple string response if JSON parsing fails
+        follow_up_questions = follow_up_questions_json
+    
+    return jsonify({
+        "success": True,
+        "followUpQuestions": follow_up_questions
+    })
+
+@app.route('/api/submit-responses', methods=['POST'])
+def submit_responses():
+    data = request.json
+    responses = data.get('responses', [])
+    
+    # Process responses to create structured user profile
+    prompt = "Based on the following user responses, create a structured profile for AYUSH lifestyle planning:\n\n"
+    for resp in responses:
+        prompt += f"Question: {resp.get('question', '')}\nAnswer: {resp.get('answer', '')}\n\n"
+    prompt += "Create a detailed JSON structure with relevant fields extracted from these responses, including prakriti assessment, dosha imbalances, and lifestyle factors."
+    
+    # Use model to analyze responses
+    structured_data_response = call_github_model(
+        messages=[
+            {"role": "system", "content": "You are an expert AYUSH practitioner who can analyze user information and create structured profiles based on Ayurvedic, Yoga, Unani, Siddha, and Homeopathy principles."},
+            {"role": "user", "content": prompt}
+        ],
+        model_name="gpt-4o-mini",
+        temperature=0.3,
+        max_tokens=3000
+    )
+    
+    # Parse the structured data
+    try:
+        # Try to extract JSON if it's embedded in text
+        if not structured_data_response.strip().startswith('{'):
+            import re
+            json_match = re.search(r'(\{.*\})', structured_data_response, re.DOTALL)
+            if json_match:
+                structured_data_response = json_match.group(1)
         
-        user_input = input("\nYou: ")
+        user_data = json.loads(structured_data_response)
         
-        if user_input.lower() == 'exit':
-            print("Thank you for using AYUSH Lifestyle Coach. Namaste! 🙏")
-            break
+        # Save user data to file
+        with open(USER_DATA_FILE, 'w') as f:
+            json.dump(user_data, f, indent=2)
         
-        # Determine which model to use based on the question
-        # Use DeepSeek R1 for complex questions about AYUSH principles
-        if any(keyword in user_input.lower() for keyword in ['why', 'explain', 'how does', 'principle', 'dosha', 'ayurveda', 'yoga', 'unani', 'siddha', 'homeopathy']):
-            model_to_use = "gpt-4o-mini"
-        else:
-            model_to_use = "gpt-4o-mini"
+        return jsonify({
+            "success": True,
+            "userProfile": user_data
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "rawResponse": structured_data_response
+        })
+
+@app.route('/api/generate-plan', methods=['POST'])
+def generate_plan():
+    global vector_store
+    
+    data = request.json
+    user_data = data.get('userProfile', {})
+    
+    if not vector_store:
+        vector_store = create_vector_db()
+        if not vector_store:
+            return jsonify({
+                "success": False,
+                "error": "Could not initialize vector database. Please add PDF files to the knowledge_base directory."
+            })
+    
+    try:
+        # Generate lifestyle plan
+        lifestyle_plan = generate_lifestyle_plan(user_data, vector_store)
         
-        # Process follow-up questions
-        prompt = f"""
+        return jsonify({
+            "success": True,
+            "lifestylePlan": lifestyle_plan
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route('/api/ask-question', methods=['POST'])
+def ask_question():
+    data = request.json
+    user_question = data.get('question', '')
+    user_data = data.get('userProfile', {})
+    lifestyle_plan = data.get('lifestylePlan', '')
+    
+    # Process follow-up questions
+    prompt = f"""
 User Profile: {json.dumps(user_data)}
 
 Lifestyle Plan: {lifestyle_plan}
 
-User Question: {user_input}
+User Question: {user_question}
 
 Please provide a helpful response to the user's question about their AYUSH lifestyle plan.
 """
-        
+    
+    try:
         response = call_github_model(
             messages=[
                 {"role": "system", "content": "You are an AYUSH lifestyle coach assistant. Answer questions about the user's lifestyle plan based on Ayurveda, Yoga, Unani, Siddha, and Homeopathy principles."},
                 {"role": "user", "content": prompt}
             ],
-            model_name=model_to_use,
+            model_name="gpt-4o-mini",
             temperature=0.7,
             max_tokens=1000
         )
         
-        print("\nCoach:", response)
+        return jsonify({
+            "success": True,
+            "response": response
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
 
-# Main function
-def main():
-    print("Initializing AYUSH Lifestyle Coach...")
-    
-    # Check for environment variables
-    if not GITHUB_TOKEN:
-        print("Error: GITHUB_TOKEN environment variable not set.")
-        print("Please set it using:")
-        print("  Windows: set GITHUB_TOKEN=your_token_here")
-        print("  Linux/Mac: export GITHUB_TOKEN=your_token_here")
-        return
-    
-    # Create vector database
-    print("Setting up knowledge base...")
-    vector_store = create_vector_db()
-    
-    if not vector_store:
-        print("Could not initialize vector database. Please add PDF files to the knowledge_base directory.")
-        return
-    
-    # Start chat interface
-    chat_with_user(vector_store)
+# Serve React frontend
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(app.static_folder + '/' + path):
+        return send_from_directory(app.static_folder, path)
+    else:
+        return send_from_directory(app.static_folder, 'index.html')
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
